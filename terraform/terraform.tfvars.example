@@ -1,0 +1,4 @@
+project_id    = "your-gcp-project-id"
+region        = "europe-west6"
+bucket_suffix = "your-initials-or-unique-suffix"
+dataset_id    = "sbb_punctuality"
