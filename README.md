@@ -27,6 +27,41 @@ Run the app:
 uv run python main.py
 ```
 
+## Phase 2: Data Exploration with marimo
+
+Phase 2 replaces Jupyter with a reproducible `marimo` notebook script:
+- `notebooks/exploration.py`
+- reusable helpers in `src/swiss_rail_punctuality/profiling.py`
+
+### 1) Add a local sample file
+
+Put one small file under `data/raw/sample/`:
+- `ist_daten_sample.csv` (semicolon-separated)
+- or `ist_daten_sample.parquet`
+
+The app validates required columns:
+`BETRIEBSTAG`, `VERKEHRSMITTEL_TEXT`, `AN_PROGNOSE_STATUS`, `ANKUNFTSZEIT`, `AN_PROGNOSE`, `FAELLT_AUS_TF`.
+
+### 2) Launch the marimo app
+
+```bash
+uv run marimo edit notebooks/exploration.py
+```
+
+Or run in read mode:
+
+```bash
+uv run marimo run notebooks/exploration.py
+```
+
+### 3) What Phase 2 produces
+
+- Row counts, column types, and null-rate table
+- Value distributions for `VERKEHRSMITTEL_TEXT` and `AN_PROGNOSE_STATUS`
+- Delay validation: `delay_min = AN_PROGNOSE - ANKUNFTSZEIT` in minutes
+- Edge-case slices for null arrivals, non-`REAL`/`ESTIMATED` statuses, and cancellations
+- A short decision log you can reuse in interviews/README
+
 ## Linters
 
 Python linting with Ruff:

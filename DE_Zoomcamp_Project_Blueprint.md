@@ -242,10 +242,10 @@ https://data.sbb.ch/api/v2/catalog/datasets/ist-daten-sbb/exports/csv
 
 ### Phase 2: Data Exploration & Profiling
 
-**What:** Download 1–2 days of Ist-Daten locally. Profile in Jupyter.
+**What:** Download 1–2 days of Ist-Daten locally. Profile in marimo.
 
 **Deliverables:**
-- `notebooks/exploration.ipynb` covering:
+- `notebooks/exploration.py` (marimo app) covering:
   - Row counts, column types, null rates
   - Value distributions: `VERKEHRSMITTEL_TEXT`, `AN_PROGNOSE_STATUS`
   - Delay calculation logic validated: `delay_min = (AN_PROGNOSE - ANKUNFTSZEIT) in minutes`
@@ -557,7 +557,7 @@ swiss-rail-punctuality/
 │       └── assert_delay_reasonable.sql
 │
 ├── notebooks/
-│   └── exploration.ipynb              # Data profiling (not production)
+│   └── exploration.py                 # marimo profiling app (not production)
 │
 ├── images/
 │   ├── architecture.png               # For README
@@ -644,7 +644,7 @@ swiss-rail-punctuality/
 
 | Week | Focus | Output |
 |------|-------|--------|
-| **1** | Phase 1–2: Setup + Exploration | GCP live, notebook done |
+| **1** | Phase 1–2: Setup + Exploration | GCP live, marimo app done |
 | **2** | Phase 3–4: Ingestion + Storage Design | Airflow running, data in GCS + BQ |
 | **3** | Phase 5–6: dbt + Tests | All models passing |
 | **4** | Phase 7–8: Orchestration + Dashboard | End-to-end daily run, dashboard live |

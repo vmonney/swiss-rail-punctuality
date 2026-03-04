@@ -4,7 +4,15 @@ version = "0.1.0"
 description = "Swiss Rail punctuality analytics project foundation"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "marimo",
+    "pandas",
+    "pyarrow",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [dependency-groups]
 dev = [
@@ -19,3 +27,6 @@ target-version = "py313"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 ignore = []
+
+[tool.setuptools.packages.find]
+where = ["src"]

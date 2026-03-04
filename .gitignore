@@ -8,6 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+.DS_Store
 
 # Terraform
 .terraform/
@@ -20,5 +21,15 @@ terraform.tfstate.*
 # Credentials
 *.json
 
+# Local/raw data
+data/raw/*
+!data/raw/sample/
+data/raw/sample/*
+!data/raw/sample/.gitkeep
+!data/raw/sample/README.md
+
 # SQLFluff cache
 .sqlfluff
+
+# marimo runtime artifacts
+notebooks/__marimo__/
