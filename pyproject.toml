@@ -5,9 +5,11 @@ description = "Swiss Rail punctuality analytics project foundation"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "altair>=6.0.0",
     "marimo",
     "pandas",
     "pyarrow",
+    "requests>=2.32.5",
 ]
 
 [build-system]
