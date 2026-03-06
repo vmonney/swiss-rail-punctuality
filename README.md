@@ -62,6 +62,126 @@ uv run marimo run notebooks/exploration.py
 - Edge-case slices for null arrivals, non-`REAL`/`ESTIMATED` statuses, and cancellations
 - A short decision log you can reuse in interviews/README
 
+## Phase 3: Raw Ingestion Pipeline (Airflow)
+
+Phase 3 adds an orchestrated raw ingestion DAG that runs daily:
+
+1. `download_csv` for the target execution date
+2. `convert_to_parquet`
+3. `upload_to_gcs` under `raw/ist-daten/YYYY/MM/DD/`
+4. `load_to_bigquery` into a partitioned raw table
+5. `cleanup_local`
+
+### Files added for Phase 3
+
+- `airflow/docker-compose.yaml`
+- `airflow/requirements.txt`
+- `airflow/.env.example`
+- `airflow/dags/sbb_daily_ingest.py`
+
+### 1) Prepare environment variables
+
+From repo root:
+
+```bash
+cp airflow/.env.example airflow/.env
+```
+
+Update `airflow/.env` with values from Terraform outputs:
+
+```bash
+terraform -chdir=terraform output -raw raw_bucket_name
+terraform -chdir=terraform output -raw bigquery_dataset_id
+terraform -chdir=terraform output -raw service_account_email
+```
+
+Set at least:
+- `GCP_PROJECT_ID`
+- `RAW_BUCKET`
+- `BQ_DATASET`
+- `BQ_TABLE`
+- `INGEST_START_DATE` (for catchup window)
+
+### 2) Add service account key for local Airflow
+
+Create a key if needed:
+
+```bash
+gcloud iam service-accounts keys create airflow/credentials/gcp-key.json \
+  --iam-account "$(terraform -chdir=terraform output -raw service_account_email)"
+```
+
+### 3) Start Airflow
+
+```bash
+docker compose --env-file airflow/.env -f airflow/docker-compose.yaml up airflow-init
+docker compose --env-file airflow/.env -f airflow/docker-compose.yaml up -d
+```
+
+Open Airflow at [http://localhost:8080](http://localhost:8080) with:
+- user: `admin`
+- password: `admin`
+
+### 4) Run and verify Phase 3
+
+Trigger one run in UI for `sbb_daily_ingest` (or run a backfill/catchup window using `INGEST_START_DATE`).
+
+By default (scheduled or manual run), the DAG ingests the **latest available day** published on the source page.
+
+Before a manual run, open **Trigger DAG**:
+- In newer Airflow UI you should now see parameter fields (`mode`, `run_date`, `backfill_days`) directly.
+- You can also still use the config JSON.
+
+Config JSON example:
+
+```json
+{
+  "mode": "latest",
+  "backfill_days": 1
+}
+```
+
+Manual options:
+- `mode: "latest"` -> anchor on the latest published day.
+- `mode: "date"` -> anchor on a specific day using `run_date`.
+- `backfill_days` -> integer from `1` to `7` (includes anchor day and previous available days).
+
+Example: run latest + previous 6 days (7 total):
+
+```json
+{
+  "mode": "latest",
+  "backfill_days": 7
+}
+```
+
+Example: run from specific anchor date + previous 2 available days:
+
+```json
+{
+  "mode": "date",
+  "run_date": "2026-03-01",
+  "backfill_days": 3
+}
+```
+
+Validate outputs:
+- GCS object path exists: `gs://<RAW_BUCKET>/raw/ist-daten/YYYY/MM/DD/`
+- BigQuery raw table exists and is populated for that date:
+
+```sql
+SELECT betriebstag_date, COUNT(*) AS rows_loaded
+FROM `your-project.your_dataset.ist_daten_raw`
+GROUP BY betriebstag_date
+ORDER BY betriebstag_date DESC
+LIMIT 10;
+```
+
+### Data quality scope in Phase 3
+
+Phase 3 keeps quality checks lightweight (required columns, non-empty files, load success).  
+Formal model-level quality remains in the dbt phases (Phase 5-6). Soda is intentionally deferred as an optional extra-mile addition after the core pipeline is stable.
+
 ## Linters
 
 Python linting with Ruff:
