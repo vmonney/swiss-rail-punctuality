@@ -1,0 +1,71 @@
+version: 2
+
+models:
+  - name: fct_daily_delays
+    description: "Daily punctuality KPIs by operating day, transport type, and line."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - operating_day
+              - transport_type
+              - line_name
+    columns:
+      - name: operating_day
+        tests:
+          - not_null
+      - name: transport_type
+        tests:
+          - not_null
+      - name: line_name
+        tests:
+          - not_null
+      - name: pct_on_time
+      - name: pct_delayed_3min
+      - name: total_cancelled
+
+  - name: fct_station_delays
+    description: "Daily punctuality KPIs by station."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - operating_day
+              - station_uic
+    columns:
+      - name: operating_day
+        tests:
+          - not_null
+      - name: station_uic
+        tests:
+          - not_null
+      - name: station_name
+        tests:
+          - not_null
+
+  - name: dim_stations
+    description: "Station lookup table."
+    columns:
+      - name: station_uic
+        tests:
+          - not_null
+          - unique
+      - name: station_name
+        tests:
+          - not_null
+
+  - name: dim_operators
+    description: "Operator lookup table."
+    columns:
+      - name: operator_id
+        tests:
+          - not_null
+          - unique
+
+  - name: dim_transport_types
+    description: "Transport type lookup table."
+    columns:
+      - name: transport_type
+        tests:
+          - not_null
+          - unique

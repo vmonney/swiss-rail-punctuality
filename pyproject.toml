@@ -18,8 +18,11 @@ build-backend = "setuptools.build_meta"
 
 [dependency-groups]
 dev = [
+    "dbt-bigquery>=1.11.1",
+    "dbt-core>=1.11.7",
     "ruff",
     "sqlfluff",
+    "sqlfluff-templater-dbt>=4.0.4",
 ]
 
 [tool.ruff]

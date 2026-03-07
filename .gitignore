@@ -40,5 +40,12 @@ airflow/logs/
 # SQLFluff cache
 .sqlfluff
 
+# dbt artifacts
+dbt_sbb_punctuality/target/
+dbt_sbb_punctuality/dbt_packages/
+dbt_sbb_punctuality/logs/
+dbt_sbb_punctuality/.user.yml
+.dbt/
+
 # marimo runtime artifacts
 notebooks/__marimo__/

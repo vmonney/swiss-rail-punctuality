@@ -1,0 +1,30 @@
+name: dbt_sbb_punctuality
+version: 1.0.0
+config-version: 2
+
+profile: dbt_sbb_punctuality
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+analysis-paths: ["analysis"]
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  dbt_sbb_punctuality:
+    +materialized: view
+    staging:
+      +schema: staging
+      +tags: ["phase5", "staging"]
+    intermediate:
+      +schema: intermediate
+      +tags: ["phase5", "intermediate"]
+    marts:
+      +materialized: table
+      +schema: marts
+      +tags: ["phase5", "marts"]

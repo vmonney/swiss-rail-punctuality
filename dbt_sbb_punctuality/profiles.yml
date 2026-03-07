@@ -1,0 +1,13 @@
+dbt_sbb_punctuality:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: "{{ env_var('BQ_DATASET', 'sbb_punctuality') }}"
+      location: "{{ env_var('GCP_REGION', 'europe-west6') }}"
+      threads: 4
+      job_retries: 1
+      priority: interactive
+      timeout_seconds: 300

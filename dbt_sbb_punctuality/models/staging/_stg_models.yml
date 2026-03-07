@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: stg_stop_events
+    description: "Cleaned stop-event grain with Swiss timestamps parsed and business-safe filtering."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - operating_day
+              - journey_id
+              - station_uic
+              - scheduled_arrival_ts
+              - scheduled_departure_ts
+    columns:
+      - name: operating_day
+        description: "Operating date parsed from BETRIEBSTAG."
+        tests:
+          - not_null
+      - name: journey_id
+        description: "Journey/trip identifier."
+        tests:
+          - not_null
+      - name: station_name
+        description: "Human-readable station name."
+        tests:
+          - not_null
+      - name: transport_type
+        description: "Transport category used for clustering and KPI slices."
+        tests:
+          - not_null
+      - name: arrival_status
+        description: "Arrival signal status retained for downstream filtering."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["REAL", "ESTIMATED", "FORECAST", "UNKNOWN"]

@@ -201,13 +201,13 @@ flowchart TD
   stgLayer --> dimTransport["marts.dim_transport_types"]
 ```
 
-### Layer contracts (current + planned)
+### Layer contracts (current)
 
 - `raw.ist_daten` (conceptual): direct ingestion output, closest representation of source data.
-- `staging.stg_stop_events` (planned in dbt): typed, renamed, and deduplicated stop-event records.
-- `intermediate.int_delays` (planned in dbt): standardized delay metrics and delay flags.
-- `marts.fct_daily_delays` and `marts.fct_station_delays` (planned in dbt): analysis-ready facts.
-- `marts.dim_stations`, `marts.dim_operators`, `marts.dim_transport_types` (planned in dbt): stable dimension lookups.
+- `staging.stg_stop_events`: typed, renamed, and deduplicated stop-event records.
+- `intermediate.int_delays`: standardized delay metrics and delay flags.
+- `marts.fct_daily_delays` and `marts.fct_station_delays`: analysis-ready facts.
+- `marts.dim_stations`, `marts.dim_operators`, `marts.dim_transport_types`: stable dimension lookups.
 
 ### Current implementation mapping
 
@@ -231,6 +231,112 @@ This maps to the conceptual `raw.ist_daten` layer used in the design and documen
 This warehouse is designed as a layered contract: raw ingestion preserves source fidelity, while downstream dbt layers progressively enforce business logic and analytics semantics.  
 Partitioning by operating day and clustering by transport type is a deliberate cost/performance decision that mirrors real production usage patterns for punctuality analytics.
 
+## Phase 5: Data Transformation (dbt)
+
+Phase 5 adds a production-grade dbt project for transformation logic and core quality checks:
+
+- project root: `dbt_sbb_punctuality/`
+- layers: `staging -> intermediate -> marts`
+- reusable parsing macro for Swiss timestamps
+- schema + custom dbt tests for core model correctness
+
+### Files added in Phase 5
+
+- `dbt_sbb_punctuality/dbt_project.yml`
+- `dbt_sbb_punctuality/profiles.yml`
+- `dbt_sbb_punctuality/packages.yml`
+- `dbt_sbb_punctuality/models/sources/_sources.yml`
+- `dbt_sbb_punctuality/models/staging/stg_stop_events.sql`
+- `dbt_sbb_punctuality/models/staging/_stg_models.yml`
+- `dbt_sbb_punctuality/models/intermediate/int_delays.sql`
+- `dbt_sbb_punctuality/models/intermediate/_int_models.yml`
+- `dbt_sbb_punctuality/models/marts/fct_daily_delays.sql`
+- `dbt_sbb_punctuality/models/marts/fct_station_delays.sql`
+- `dbt_sbb_punctuality/models/marts/dim_stations.sql`
+- `dbt_sbb_punctuality/models/marts/dim_operators.sql`
+- `dbt_sbb_punctuality/models/marts/dim_transport_types.sql`
+- `dbt_sbb_punctuality/models/marts/_marts_models.yml`
+- `dbt_sbb_punctuality/macros/parse_swiss_timestamp.sql`
+- `dbt_sbb_punctuality/tests/assert_delay_reasonable.sql`
+
+### Model contracts
+
+- `stg_stop_events`: parses Swiss timestamps, renames raw columns to English `snake_case`, filters pass-throughs and cancellations, and deduplicates stop events.
+- `int_delays`: computes:
+  - `arrival_delay_min = TIMESTAMP_DIFF(actual_arrival_ts, scheduled_arrival_ts, MINUTE)`
+  - `is_delayed = arrival_delay_min > 0`
+  - `is_significantly_delayed = arrival_delay_min >= 3`
+  - keeps only `REAL` and `ESTIMATED` arrival statuses
+- `fct_daily_delays`: daily KPIs by day x transport type x line:
+  - `avg_delay`
+  - `pct_on_time`
+  - `pct_delayed_3min`
+  - `total_cancelled`
+- `fct_station_delays`: same KPI family at station x day grain.
+- dimensions are deduplicated lookups from staging.
+
+### Core tests in Phase 5
+
+Phase 5 includes only **core** tests needed to guarantee trustworthy marts:
+
+- source and schema tests (`not_null`, `accepted_values`, uniqueness checks)
+- package test via `dbt_utils` for composite uniqueness
+- custom test `assert_delay_reasonable` on delay bounds (`-60` to `+180` min)
+
+Broader test expansion is intentionally deferred to **Phase 6**.
+
+### Run Phase 5 locally
+
+1. Install dependencies:
+
+```bash
+uv sync --all-groups
+```
+
+2. Ensure env vars are available:
+
+- `GCP_PROJECT_ID`
+- `BQ_DATASET` (default `sbb_punctuality`)
+- optional `GCP_REGION` (default `europe-west6`)
+
+Auth options:
+- local/dev: `gcloud auth application-default login` (used by `method: oauth`)
+- service-account key (optional): export `GOOGLE_APPLICATION_CREDENTIALS` if you switch profile auth method
+
+3. Install dbt package dependencies:
+
+```bash
+uv run dbt deps --project-dir dbt_sbb_punctuality --profiles-dir dbt_sbb_punctuality
+```
+
+4. Build models:
+
+```bash
+uv run dbt run --project-dir dbt_sbb_punctuality --profiles-dir dbt_sbb_punctuality
+```
+
+5. Run tests:
+
+```bash
+uv run dbt test --project-dir dbt_sbb_punctuality --profiles-dir dbt_sbb_punctuality
+```
+
+### Quick verification queries
+
+```sql
+SELECT operating_day, transport_type, line_name, avg_delay, pct_on_time, pct_delayed_3min, total_cancelled
+FROM `your-project.your_dataset.fct_daily_delays`
+ORDER BY operating_day DESC
+LIMIT 20;
+```
+
+```sql
+SELECT operating_day, station_name, avg_delay, pct_on_time, total_cancelled
+FROM `your-project.your_dataset.fct_station_delays`
+ORDER BY operating_day DESC
+LIMIT 20;
+```
+
 ## Linters
 
 Python linting with Ruff:
@@ -239,10 +345,10 @@ Python linting with Ruff:
 uv run ruff check .
 ```
 
-SQL linting with SQLFluff (for future SQL/dbt models):
+SQL linting with SQLFluff (dbt templater + BigQuery dialect):
 
 ```bash
-uv run sqlfluff lint .
+GCP_PROJECT_ID=your-project uv run sqlfluff lint dbt_sbb_punctuality/models dbt_sbb_punctuality/tests
 ```
 
 ## Terraform (Phase 1 Infrastructure)
