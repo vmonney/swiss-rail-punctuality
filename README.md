@@ -182,6 +182,55 @@ LIMIT 10;
 Phase 3 keeps quality checks lightweight (required columns, non-empty files, load success).  
 Formal model-level quality remains in the dbt phases (Phase 5-6). Soda is intentionally deferred as an optional extra-mile addition after the core pipeline is stable.
 
+## Phase 4: Data Storage Design
+
+Phase 4 defines a warehouse layer contract that is both query-efficient and easy to explain in interviews.
+
+### Storage layer architecture
+
+```mermaid
+flowchart TD
+  sourceCsv[Daily CSV source] --> rawGcs["GCS raw/ist-daten/YYYY/MM/DD/"]
+  rawGcs --> rawBq["BigQuery raw.ist_daten (conceptual)"]
+  rawBq --> stgLayer["staging.stg_stop_events"]
+  stgLayer --> intLayer["intermediate.int_delays"]
+  intLayer --> fctDaily["marts.fct_daily_delays"]
+  intLayer --> fctStation["marts.fct_station_delays"]
+  stgLayer --> dimStations["marts.dim_stations"]
+  stgLayer --> dimOperators["marts.dim_operators"]
+  stgLayer --> dimTransport["marts.dim_transport_types"]
+```
+
+### Layer contracts (current + planned)
+
+- `raw.ist_daten` (conceptual): direct ingestion output, closest representation of source data.
+- `staging.stg_stop_events` (planned in dbt): typed, renamed, and deduplicated stop-event records.
+- `intermediate.int_delays` (planned in dbt): standardized delay metrics and delay flags.
+- `marts.fct_daily_delays` and `marts.fct_station_delays` (planned in dbt): analysis-ready facts.
+- `marts.dim_stations`, `marts.dim_operators`, `marts.dim_transport_types` (planned in dbt): stable dimension lookups.
+
+### Current implementation mapping
+
+Current Phase 3 implementation uses:
+
+- Table: `sbb_punctuality.ist_daten_raw`
+- Partition key: `betriebstag_date` (normalized from source field `BETRIEBSTAG`)
+- Cluster key: `VERKEHRSMITTEL_TEXT`
+
+This maps to the conceptual `raw.ist_daten` layer used in the design and documentation.
+
+### Partitioning and clustering rationale
+
+- Partition by operating date (`BETRIEBSTAG` -> `betriebstag_date`) because nearly all analytics filter by date windows.
+- Clustering by `VERKEHRSMITTEL_TEXT` co-locates transport-type records (IC, IR, RE, S, Bus) frequently queried together.
+- Combined partition + cluster design reduces scanned bytes and improves query cost/performance for dashboard and ad hoc analysis.
+- Keeping the raw layer append-idempotent and transformation layers declarative (dbt) improves reproducibility and operational safety.
+
+### Portfolio interview narrative (2 sentences)
+
+This warehouse is designed as a layered contract: raw ingestion preserves source fidelity, while downstream dbt layers progressively enforce business logic and analytics semantics.  
+Partitioning by operating day and clustering by transport type is a deliberate cost/performance decision that mirrors real production usage patterns for punctuality analytics.
+
 ## Linters
 
 Python linting with Ruff:
