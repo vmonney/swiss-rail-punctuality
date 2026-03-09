@@ -181,6 +181,7 @@ LIMIT 10;
 
 Phase 3 keeps quality checks lightweight (required columns, non-empty files, load success).  
 Formal model-level quality remains in the dbt phases (Phase 5-6). Soda is intentionally deferred as an optional extra-mile addition after the core pipeline is stable.
+The raw layer intentionally preserves upstream imperfections; strict semantic guarantees are enforced from staging/intermediate onward.
 
 ## Phase 4: Data Storage Design
 
@@ -279,13 +280,28 @@ Phase 5 adds a production-grade dbt project for transformation logic and core qu
 
 Phase 5 includes only **core** tests needed to guarantee trustworthy marts:
 
-- source and schema tests (`not_null`, `accepted_values`, uniqueness checks)
+- source and schema tests (`not_null`, `accepted_values`, uniqueness checks), with null-heavy raw fields allowed to warn instead of fail
 - package test via `dbt_utils` for composite uniqueness
 - custom test `assert_delay_reasonable` on delay bounds (`-60` to `+180` min)
 
 Broader test expansion is intentionally deferred to **Phase 6**.
 
-### Run Phase 5 locally
+### Premium test expansion in Phase 6
+
+Phase 6 upgrades quality to a portfolio-grade test suite with layered checks:
+
+- `dbt_utils` composite uniqueness at staging/intermediate/marts grain
+- `dbt_expectations` KPI guardrails:
+  - percentages stay in `0..100`
+  - count metrics stay `>= 0`
+  - delay values stay within operational bounds
+- relationships integrity:
+  - `fct_station_delays.station_uic -> dim_stations.station_uic`
+  - `fct_daily_delays.transport_type -> dim_transport_types.transport_type`
+- source freshness SLA on `raw.ist_daten_raw` (`warn_after: 36h`, `error_after: 60h`)
+- domain-specific singular test: `tests/assert_delay_reasonable.sql`
+
+### Run Phase 5 + Phase 6 locally
 
 1. Install dependencies:
 
@@ -319,6 +335,12 @@ uv run dbt run --project-dir dbt_sbb_punctuality --profiles-dir dbt_sbb_punctual
 
 ```bash
 uv run dbt test --project-dir dbt_sbb_punctuality --profiles-dir dbt_sbb_punctuality
+```
+
+6. Check source freshness:
+
+```bash
+uv run dbt source freshness --project-dir dbt_sbb_punctuality --profiles-dir dbt_sbb_punctuality
 ```
 
 ### Quick verification queries

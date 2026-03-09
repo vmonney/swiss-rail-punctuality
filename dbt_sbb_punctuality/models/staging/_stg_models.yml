@@ -21,6 +21,14 @@ models:
         description: "Journey/trip identifier."
         tests:
           - not_null
+      - name: operator_id
+        description: "Operator identifier used for dimensional joins."
+        tests:
+          - not_null
+      - name: station_uic
+        description: "Station UIC code used as station grain key."
+        tests:
+          - not_null
       - name: station_name
         description: "Human-readable station name."
         tests:
@@ -36,3 +44,27 @@ models:
           - accepted_values:
               arguments:
                 values: ["REAL", "ESTIMATED", "FORECAST", "UNKNOWN"]
+      - name: is_additional_service
+        description: "Boolean flag normalized from ZUSATZFAHRT_TF."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+                quote: false
+      - name: is_cancelled
+        description: "Boolean flag normalized from FAELLT_AUS_TF."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+                quote: false
+      - name: is_pass_through
+        description: "Boolean flag normalized from DURCHFAHRT_TF."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+                quote: false

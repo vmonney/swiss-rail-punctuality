@@ -17,12 +17,41 @@ models:
       - name: transport_type
         tests:
           - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_transport_types')
+                field: transport_type
       - name: line_name
         tests:
           - not_null
+      - name: total_events
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                strictly: false
       - name: pct_on_time
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 100
+                strictly: false
       - name: pct_delayed_3min
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 100
+                strictly: false
       - name: total_cancelled
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                strictly: false
 
   - name: fct_station_delays
     description: "Daily punctuality KPIs by station."
@@ -39,9 +68,41 @@ models:
       - name: station_uic
         tests:
           - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_stations')
+                field: station_uic
       - name: station_name
         tests:
           - not_null
+      - name: total_events
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                strictly: false
+      - name: pct_on_time
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 100
+                strictly: false
+      - name: pct_delayed_3min
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 100
+                strictly: false
+      - name: total_cancelled
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                strictly: false
 
   - name: dim_stations
     description: "Station lookup table."

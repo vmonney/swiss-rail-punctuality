@@ -9,7 +9,10 @@ sources:
       - name: ist_daten_raw
         description: "Unmodeled raw stop-event records from opentransportdata.swiss."
         config:
-          loaded_at_field: betriebstag_date
+          loaded_at_field: "cast(betriebstag_date as timestamp)"
+          freshness:
+            warn_after: {count: 36, period: hour}
+            error_after: {count: 60, period: hour}
         columns:
           - name: BETRIEBSTAG
             tests:
@@ -17,3 +20,13 @@ sources:
           - name: FAHRT_BEZEICHNER
             tests:
               - not_null
+          - name: AN_PROGNOSE_STATUS
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+          - name: VERKEHRSMITTEL_TEXT
+            tests:
+              - not_null:
+                  config:
+                    severity: warn

@@ -3,6 +3,14 @@ version: 2
 models:
   - name: int_delays
     description: "Delay-centric model with SBB 3-minute significance threshold and canonical delay flags."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - operating_day
+              - journey_id
+              - station_uic
+              - scheduled_arrival_ts
     columns:
       - name: operating_day
         tests:
@@ -23,3 +31,22 @@ models:
         description: "Arrival delay in minutes, actual - scheduled."
         tests:
           - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: -60
+                max_value: 180
+                strictly: false
+      - name: is_delayed
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+                quote: false
+      - name: is_significantly_delayed
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+                quote: false
