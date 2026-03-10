@@ -1,5 +1,8 @@
 x-airflow-common: &airflow-common
-  image: apache/airflow:2.10.5
+  image: swiss-rail-airflow:2.10.5-local
+  build:
+    context: ..
+    dockerfile: airflow/Dockerfile
   entrypoint: /bin/bash
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -19,8 +22,8 @@ x-airflow-common: &airflow-common
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
-    - ./requirements.txt:/opt/airflow/requirements.txt:ro
     - ./credentials:/opt/airflow/credentials:ro
+    - ../dbt_sbb_punctuality:/opt/airflow/dbt_sbb_punctuality:ro
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     postgres:
@@ -42,12 +45,12 @@ services:
 
   airflow-init:
     <<: *airflow-common
-    command: -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && python -m airflow db migrate && python -m airflow users create --username admin --firstname admin --lastname admin --role Admin --email admin@example.com --password admin"
+    command: -c "python -m airflow db migrate && python -m airflow users create --username admin --firstname admin --lastname admin --role Admin --email admin@example.com --password admin"
     restart: "no"
 
   airflow-webserver:
     <<: *airflow-common
-    command: -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && python -m airflow webserver"
+    command: -c "python -m airflow webserver"
     ports:
       - "8080:8080"
     depends_on:
@@ -57,7 +60,7 @@ services:
 
   airflow-scheduler:
     <<: *airflow-common
-    command: -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && python -m airflow scheduler"
+    command: -c "python -m airflow scheduler"
     depends_on:
       airflow-init:
         condition: service_completed_successfully

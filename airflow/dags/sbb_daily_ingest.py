@@ -10,9 +10,10 @@ from urllib.parse import urljoin
 import pandas as pd
 import pendulum
 import requests
-from airflow.exceptions import AirflowFailException
+from airflow.exceptions import AirflowFailException, AirflowSkipException
 from airflow.models.param import Param
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from google.api_core.exceptions import NotFound
 from google.cloud import bigquery, storage
 
@@ -88,9 +89,35 @@ def _resolve_mode(dag_run_conf: dict[str, object]) -> str:
     if not isinstance(mode, str):
         raise AirflowFailException("dag_run.conf['mode'] must be a string.")
     normalized_mode = mode.lower().strip()
-    if normalized_mode not in {"latest", "date"}:
-        raise AirflowFailException("dag_run.conf['mode'] must be either 'latest' or 'date'.")
+    if normalized_mode not in {"latest", "date", "resume"}:
+        raise AirflowFailException(
+            "dag_run.conf['mode'] must be either 'latest', 'date', or 'resume'."
+        )
     return normalized_mode
+
+
+def _latest_loaded_partition_date() -> str | None:
+    project_id = _require_env(PROJECT_ID, "GCP_PROJECT_ID")
+    dataset = _require_env(BQ_DATASET, "BQ_DATASET")
+    raw_table_id = f"{project_id}.{dataset}.{BQ_TABLE}"
+    bq_client = bigquery.Client(project=project_id)
+    query = (
+        "SELECT CAST(MAX(betriebstag_date) AS STRING) AS max_date "
+        f"FROM `{raw_table_id}`"
+    )
+    try:
+        rows = list(bq_client.query(query).result())
+    except NotFound:
+        log.info("Raw table does not exist yet: %s", raw_table_id)
+        return None
+
+    if not rows:
+        return None
+
+    max_date = rows[0].get("max_date")
+    if not isinstance(max_date, str) or max_date == "":
+        return None
+    return max_date
 
 
 def _resolve_target_dates(
@@ -113,6 +140,40 @@ def _resolve_target_dates(
     mode = _resolve_mode(effective_config)
     run_date = _resolve_run_date(effective_config)
     backfill_days = _resolve_backfill_days(effective_config)
+
+    if mode == "resume":
+        latest_available = available_dates[-1]
+        last_loaded = _latest_loaded_partition_date()
+        if last_loaded is None:
+            target_dates = [latest_available]
+            log.info(
+                "Resume mode found no previously loaded partition; "
+                "defaulting to latest date=%s.",
+                latest_available,
+            )
+            return target_dates
+
+        target_dates = [date for date in available_dates if date > last_loaded]
+        if not target_dates:
+            raise AirflowSkipException(
+                "Resume mode found no new source dates after the last loaded partition "
+                f"({last_loaded}). Skipping this run."
+            )
+
+        if len(target_dates) > MAX_BACKFILL_DAYS:
+            raise AirflowFailException(
+                "Resume mode found "
+                f"{len(target_dates)} missing days after {last_loaded}, "
+                f"which exceeds MAX_BACKFILL_DAYS={MAX_BACKFILL_DAYS}. "
+                "Run multiple manual windows with mode='date' and backfill_days<=7."
+            )
+
+        log.info(
+            "Resume mode selected target dates=%s (last_loaded=%s)",
+            target_dates,
+            last_loaded,
+        )
+        return target_dates
 
     if mode == "date":
         if not run_date:
@@ -324,7 +385,7 @@ def load_to_bigquery(**context: object) -> None:
         AS
         SELECT
           t.*,
-          {temp_betriebstag_date_sql} AS betriebstag_date
+          CAST(NULL AS DATE) AS betriebstag_date
         FROM `{temp_table_id}` AS t
         WHERE 1 = 0
         """
@@ -390,8 +451,11 @@ with DAG(
         "mode": Param(
             default="latest",
             type="string",
-            enum=["latest", "date"],
-            description="latest=latest published day, date=use run_date.",
+            enum=["latest", "date", "resume"],
+            description=(
+                "latest=latest day, date=run_date, "
+                "resume=missing since last raw partition."
+            ),
         ),
         "run_date": Param(
             default=None,
@@ -437,10 +501,23 @@ with DAG(
         trigger_rule="all_done",
     )
 
+    trigger_dbt_transform_task = TriggerDagRunOperator(
+        task_id="trigger_dbt_transform",
+        trigger_dag_id="sbb_dbt_transform",
+        conf={
+            "source_dag_id": "{{ dag.dag_id }}",
+            "source_run_id": "{{ run_id }}",
+            "triggered_at": "{{ ts }}",
+            "mode": "{{ params.mode }}",
+            "target_dates": "{{ ti.xcom_pull(task_ids='download_csv')['target_dates'] }}",
+        },
+    )
+
     (
         download_csv_task
         >> convert_to_parquet_task
         >> upload_to_gcs_task
         >> load_to_bigquery_task
-        >> cleanup_local_task
     )
+    load_to_bigquery_task >> cleanup_local_task
+    load_to_bigquery_task >> trigger_dbt_transform_task

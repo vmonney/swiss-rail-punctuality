@@ -114,8 +114,24 @@ gcloud iam service-accounts keys create airflow/credentials/gcp-key.json \
 ### 3) Start Airflow
 
 ```bash
+docker compose --env-file airflow/.env -f airflow/docker-compose.yaml build
 docker compose --env-file airflow/.env -f airflow/docker-compose.yaml up airflow-init
 docker compose --env-file airflow/.env -f airflow/docker-compose.yaml up -d
+```
+
+This project uses a deterministic Airflow image build (`airflow/Dockerfile`) with dependencies resolved from `uv.lock`.  
+No runtime `pip install` runs during container startup.
+
+To stop Airflow:
+
+```bash
+docker compose --env-file airflow/.env -f airflow/docker-compose.yaml down
+```
+
+If you also want to remove local volumes (reset local Airflow state):
+
+```bash
+docker compose --env-file airflow/.env -f airflow/docker-compose.yaml down -v
 ```
 
 Open Airflow at [http://localhost:8080](http://localhost:8080) with:
@@ -144,6 +160,7 @@ Config JSON example:
 Manual options:
 - `mode: "latest"` -> anchor on the latest published day.
 - `mode: "date"` -> anchor on a specific day using `run_date`.
+- `mode: "resume"` -> load source dates after the latest loaded `betriebstag_date` in raw BigQuery.
 - `backfill_days` -> integer from `1` to `7` (includes anchor day and previous available days).
 
 Example: run latest + previous 6 days (7 total):
@@ -162,6 +179,14 @@ Example: run from specific anchor date + previous 2 available days:
   "mode": "date",
   "run_date": "2026-03-01",
   "backfill_days": 3
+}
+```
+
+Example: resume from the last loaded raw partition:
+
+```json
+{
+  "mode": "resume"
 }
 ```
 
@@ -357,6 +382,108 @@ SELECT operating_day, station_name, avg_delay, pct_on_time, total_cancelled
 FROM `your-project.your_dataset.fct_station_delays`
 ORDER BY operating_day DESC
 LIMIT 20;
+```
+
+## Phase 7: Orchestration & Scheduling
+
+Phase 7 upgrades orchestration to a two-DAG Airflow pipeline with explicit contracts:
+
+- `sbb_daily_ingest` (scheduled at `06:00 UTC`) handles raw ingestion from source CSV to BigQuery raw.
+- `sbb_dbt_transform` (triggered) runs `dbt deps`, `dbt run`, and `dbt test`.
+- Ingest DAG triggers transform DAG only on successful ingestion completion.
+
+### Files added/updated in Phase 7
+
+- `airflow/dags/sbb_daily_ingest.py` (selection modes + trigger to dbt DAG)
+- `airflow/dags/sbb_dbt_transform.py` (dbt orchestration DAG)
+- `airflow/Dockerfile` (deterministic Airflow runtime with `uv` + `uv.lock`)
+- `airflow/docker-compose.yaml` (mount dbt project into Airflow containers)
+
+### Trigger behavior
+
+- Scheduled daily run: `sbb_daily_ingest` executes at `0 6 * * *`.
+- Manual run modes:
+  - `latest`: latest published day (plus optional `backfill_days`)
+  - `date`: anchor on explicit `run_date` and apply `backfill_days`
+  - `resume`: process dates newer than latest loaded raw partition
+- Post-ingest trigger: `sbb_daily_ingest` triggers `sbb_dbt_transform` with run metadata in `dag_run.conf`.
+
+### How to test Phase 7 end-to-end
+
+1. Restart Airflow services so new DAGs/dependencies are loaded:
+
+```bash
+docker compose --env-file airflow/.env -f airflow/docker-compose.yaml down
+docker compose --env-file airflow/.env -f airflow/docker-compose.yaml build
+docker compose --env-file airflow/.env -f airflow/docker-compose.yaml up airflow-init
+docker compose --env-file airflow/.env -f airflow/docker-compose.yaml up -d
+```
+
+2. In Airflow UI, unpause:
+- `sbb_daily_ingest`
+- `sbb_dbt_transform`
+
+3. Trigger ingestion DAG with one of these payloads:
+
+Latest day:
+```json
+{
+  "mode": "latest",
+  "backfill_days": 1
+}
+```
+
+Specific day window:
+```json
+{
+  "mode": "date",
+  "run_date": "2026-03-01",
+  "backfill_days": 3
+}
+```
+
+Resume mode:
+```json
+{
+  "mode": "resume"
+}
+```
+
+4. Verify orchestration in Airflow:
+- `sbb_daily_ingest` succeeds end-to-end.
+- `trigger_dbt_transform` task runs.
+- `sbb_dbt_transform` starts automatically and all three tasks pass (`dbt_deps`, `dbt_run`, `dbt_test`).
+- Commands now run via plain dbt CLI from the prebuilt image (no fallback command needed).
+
+5. Validate raw partitions after ingest:
+
+```sql
+SELECT betriebstag_date, COUNT(*) AS rows_loaded
+FROM `your-project.your_dataset.ist_daten_raw`
+GROUP BY betriebstag_date
+ORDER BY betriebstag_date DESC
+LIMIT 20;
+```
+
+6. Validate marts after dbt DAG:
+
+```sql
+SELECT operating_day, transport_type, avg_delay, pct_on_time, pct_delayed_3min
+FROM `your-project.your_dataset.fct_daily_delays`
+ORDER BY operating_day DESC
+LIMIT 20;
+```
+
+### Relaunch strategy (no 30-day backfill)
+
+For relaunch after downtime, use either:
+- `mode=resume` to ingest only dates newer than the latest loaded raw partition, or
+- `mode=date` with `backfill_days` to replay a specific controlled window.
+
+If dbt command resolution is ever in doubt, verify inside scheduler:
+
+```bash
+docker compose --env-file airflow/.env -f airflow/docker-compose.yaml exec airflow-scheduler dbt --version
 ```
 
 ## Linters
