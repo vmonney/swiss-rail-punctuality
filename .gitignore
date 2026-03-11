@@ -49,3 +49,13 @@ dbt_sbb_punctuality/.user.yml
 
 # marimo runtime artifacts
 notebooks/__marimo__/
+
+# Evidence runtime artifacts
+evidence/node_modules/
+evidence/.svelte-kit/
+evidence/.evidence/
+evidence/build/
+
+# Evidence local/source overrides
+evidence/sources/**/connection.options.yaml
+evidence/sources/**/connection.local.yaml

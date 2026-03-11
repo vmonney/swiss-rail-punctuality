@@ -1,0 +1,5 @@
+name: sbb_punctuality_marts
+type: bigquery
+options:
+  project_id: ${EVIDENCE_BQ_PROJECT}
+  authenticator: gcloud-cli

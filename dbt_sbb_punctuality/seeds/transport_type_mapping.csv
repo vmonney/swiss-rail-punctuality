@@ -1,0 +1,17 @@
+transport_type,transport_type_label,transport_type_description,mapping_source
+IC,InterCity,Long-distance fast train service,manual_curation
+ICE,InterCityExpress,High-speed long-distance train service,manual_curation
+EC,EuroCity,Long-distance european train service,manual_curation
+TGV,TGV,High-speed long-distance train service,manual_curation
+RJX,Railjet Xpress,High-speed long-distance train service,manual_curation
+NJ,Nightjet,Night train service,manual_curation
+IR,InterRegio,Regional long-distance train service,manual_curation
+RE,RegioExpress,Faster regional service with limited stops,manual_curation
+R,Regio,Regional train service with frequent stops,manual_curation
+S,S-Bahn,Suburban commuter rail service,manual_curation
+BUS,Bus,Road-based public transport service,manual_curation
+TRAM,Tram,Urban tram service,manual_curation
+M,Metro,Urban rapid transit service,manual_curation
+FUN,Funicular,Incline railway funicular service,manual_curation
+BAT,Boat,Water-based passenger transport service,manual_curation
+UNKNOWN,Unknown,Missing or blank source transport type,pipeline_default

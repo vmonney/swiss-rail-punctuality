@@ -1,0 +1,13 @@
+version: 2
+
+seeds:
+  - name: transport_type_mapping
+    description: "Curated mapping from transport type codes to friendly labels."
+    columns:
+      - name: transport_type
+        tests:
+          - not_null
+          - unique
+      - name: transport_type_label
+        tests:
+          - not_null

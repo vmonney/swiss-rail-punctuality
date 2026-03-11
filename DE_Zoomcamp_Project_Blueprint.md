@@ -2,7 +2,7 @@
 
 **Project title suggestion:** *"Swiss Rail Pulse: Analyzing SBB/CFF Train Punctuality"*
 **Target:** Maximum score (28/28) + portfolio-ready for Swiss DE roles
-**Stack:** Docker · Terraform · Airflow · GCP (GCS + BigQuery) · dbt · Looker Studio
+**Stack:** Docker · Terraform · Airflow · GCP (GCS + BigQuery) · dbt · Evidence
 
 ---
 
@@ -61,7 +61,7 @@ opentransportdata.swiss (daily CSV ~500MB)
         │
         ▼
 ┌──────────────────┐
-│  Looker Studio   │   Dashboard with 2+ tiles
+│  Evidence        │   Report with 2+ tiles
 │  (Visualization) │
 └──────────────────┘
 ```
@@ -72,7 +72,7 @@ opentransportdata.swiss (daily CSV ~500MB)
 2. **dbt project** with 10–15 models across staging/intermediate/mart layers, with tests
 3. **Airflow DAGs** (ingestion + dbt trigger), fully Dockerized
 4. **Terraform config** provisioning GCS bucket, BigQuery dataset, service accounts
-5. **Looker Studio dashboard** with ≥2 tiles (delay distribution + temporal trend)
+5. **Evidence report** with ≥2 tiles (delay distribution + temporal trend)
 6. **README.md** with architecture diagram, setup guide, screenshots, and design decisions
 
 ---
@@ -167,7 +167,7 @@ https://data.sbb.ch/api/v2/catalog/datasets/ist-daten-sbb/exports/csv
 | **Data Warehouse** | BigQuery | Course-native, serverless, partition/cluster support, generous free tier |
 | **Transformation** | dbt-core + dbt-bigquery | Industry standard analytics engineering. Gets Transformation 4/4 |
 | **Data Quality** | dbt tests (built-in) | Schema + custom tests. Optional: add Soda Core for "extra mile" |
-| **Dashboard** | Looker Studio (free) | Free, connects to BigQuery natively, shareable URL for peer review |
+| **Dashboard** | Evidence (open source) | BI as code with SQL + Markdown, portfolio-friendly and version controlled |
 | **Version Control** | Git + GitHub | Required for submission |
 | **CI/CD (optional)** | GitHub Actions | Lint, validate, test — "extra mile" |
 
@@ -182,7 +182,7 @@ https://data.sbb.ch/api/v2/catalog/datasets/ist-daten-sbb/exports/csv
 │ Store (Raw) │ GCS (Parquet) → BQ native table            │
 │ Transform   │ dbt → staging → intermediate → marts       │
 │ Quality     │ dbt tests (not_null, unique, accepted_vals) │
-│ Serve       │ BigQuery marts → Looker Studio              │
+│ Serve       │ BigQuery marts → Evidence                   │
 │ Orchestrate │ Airflow (Docker) — daily schedule           │
 │ CI/CD       │ GitHub Actions (optional)                   │
 └─────────────┴────────────────────────────────────────────┘
@@ -202,7 +202,7 @@ https://data.sbb.ch/api/v2/catalog/datasets/ist-daten-sbb/exports/csv
 | GCS Bucket | — | ✅ Terraform |
 | BigQuery Dataset | — | ✅ Terraform |
 | Service Account | — | ✅ Terraform |
-| Looker Studio | — | ✅ Free web app |
+| Evidence app | ✅ (Node.js) | — |
 
 ### Cloud Cost Estimate: ~$0–5
 
@@ -401,7 +401,7 @@ dbt_sbb_punctuality/
 
 ### Phase 8: Dashboard
 
-**What:** Looker Studio dashboard connected to BigQuery marts.
+**What:** Evidence report connected to BigQuery marts.
 
 **Deliverables:**
 - **Tile 1 (Categorical):** Bar chart — Average delay by transport type (IC, IR, S, RE, etc.)
@@ -411,7 +411,7 @@ dbt_sbb_punctuality/
 
 **Dependencies:** Phase 5 (mart tables populated).
 
-**Definition of Done:** Dashboard accessible via shareable URL; 2+ tiles; screenshot in README.
+**Definition of Done:** Evidence report accessible via shareable URL; 2+ tiles; screenshot in README.
 
 ---
 
@@ -581,7 +581,7 @@ swiss-rail-punctuality/
 | **Data ingestion** | 4 | End-to-end pipeline, multi-step DAG, data lake | ✅ Airflow: download → Parquet → GCS → BQ |
 | **Data warehouse** | 4 | Partitioned + clustered with explanation | ✅ Partitioned by date, clustered by type, explained |
 | **Transformations** | 4 | dbt, Spark, or similar | ✅ dbt: staging → intermediate → marts |
-| **Dashboard** | 4 | 2+ tiles | ✅ Bar chart + trend line in Looker Studio |
+| **Dashboard** | 4 | 2+ tiles | ✅ Bar chart + trend line in Evidence |
 | **Reproducibility** | 4 | Clear instructions, code works | ✅ docker-compose, step-by-step README |
 | **TOTAL** | **28** | | **28/28 targeted** |
 
@@ -620,7 +620,7 @@ swiss-rail-punctuality/
 | **Timestamp timezone** | SBB data is CET/CEST, BigQuery defaults UTC | Document clearly; be consistent (keep CET or convert to UTC in staging) |
 | **Large downloads fail** | 500MB can timeout | Retry logic in Airflow (3 retries, exponential backoff), `stream=True` in requests |
 | **Ist-Daten v1 → v2 transition** | v1 being deprecated ~2026 in favor of v2 | Check if v2 is available at `data.opentransportdata.swiss/dataset/ist-daten-v2`; schema is very similar |
-| **Looker Studio caching** | Dashboard shows stale data | Set freshness to "every 1 hour" in data source |
+| **Static report deployment drift** | Published report can lag behind latest marts | Rebuild and redeploy Evidence report after dbt refresh |
 
 ### Cost Traps
 
@@ -636,7 +636,7 @@ swiss-rail-punctuality/
 1. **Verify archive URL:** Manually download 1 day before building the DAG. The archive at `archive.opentransportdata.swiss` may have changed URL patterns
 2. **Ist-Daten v1 vs v2:** v1 sunset is ~early 2026. Check v2 availability — it adds foreign station data and a new SLOID format
 3. **SBB-only vs all operators:** Full dataset is richer but 3–5x larger. Decision depends on your machine's Docker memory
-4. **Peer reviewer dashboard access:** Looker Studio must be set to "Anyone with link can view"
+4. **Peer reviewer report access:** Publish Evidence output to a public viewer URL
 
 ---
 

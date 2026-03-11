@@ -486,6 +486,56 @@ If dbt command resolution is ever in doubt, verify inside scheduler:
 docker compose --env-file airflow/.env -f airflow/docker-compose.yaml exec airflow-scheduler dbt --version
 ```
 
+## Phase 8: Dashboard (Evidence, Premium Portfolio)
+
+Phase 8 delivers a reviewer-ready Evidence report powered by BigQuery marts with stable KPI definitions.
+
+### Dashboard data sources
+
+- `sbb_punctuality_marts.bi_transport_daily`
+  - grain: `operating_day x transport_type`
+  - KPIs: `avg_delay`, `pct_on_time`, `pct_delayed_3min`, `total_cancelled`
+- `sbb_punctuality_marts.bi_delay_heatmap`
+  - grain: `operating_day x transport_type x day_of_week x hour_of_day`
+  - KPIs: `avg_delay`, `pct_on_time`
+
+Build these models with:
+
+```bash
+set -a && source airflow/.env && set +a
+uv run dbt build --project-dir dbt_sbb_punctuality --profiles-dir dbt_sbb_punctuality --select bi_transport_daily bi_delay_heatmap
+```
+
+### Required report tiles
+
+1. **Categorical tile**: bar chart of average delay by `transport_type`
+2. **Temporal tile**: line chart of `pct_on_time` by `operating_day`, broken down by `transport_type`
+3. **Bonus tile**: heatmap of delays by `hour_of_day x day_of_week_name`
+
+Required controls:
+
+- Date range picker (`operating_day`)
+- Multi-select filter (`transport_type`)
+
+### Evidence implementation runbook
+
+Use the exact implementation steps in:
+
+- `docs/dashboard_build.md`
+
+### Sharing and reviewer access
+
+- Publish `evidence/build` on a static host and share the public URL
+- Keep viewer-level access for reviewers
+- Keep data refresh operationally aligned with your pipeline cadence
+
+### Submission evidence checklist
+
+- [ ] Evidence report has at least 2 mandatory tiles (plus bonus heatmap if included)
+- [ ] Filters work across all charts
+- [ ] Shareable URL opens without sign-in restrictions for reviewers
+- [ ] Screenshot saved as `images/dashboard_screenshot.png`
+
 ## Linters
 
 Python linting with Ruff:
